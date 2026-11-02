@@ -1,31 +1,14 @@
 ﻿using MediatR;
-using MediatR.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using StargateAPI.Business.Data;
 using StargateAPI.Controllers;
+using System.Net;
 
 namespace StargateAPI.Business.Commands
 {
     public class CreatePerson : IRequest<CreatePersonResult>
     {
         public required string Name { get; set; } = string.Empty;
-    }
-
-    public class CreatePersonPreProcessor : IRequestPreProcessor<CreatePerson>
-    {
-        private readonly StargateContext _context;
-        public CreatePersonPreProcessor(StargateContext context)
-        {
-            _context = context;
-        }
-        public Task Process(CreatePerson request, CancellationToken cancellationToken)
-        {
-            var person = _context.People.AsNoTracking().FirstOrDefault(z => z.Name == request.Name);
-
-            if (person is not null) throw new BadHttpRequestException("Bad Request");
-
-            return Task.CompletedTask;
-        }
     }
 
     public class CreatePersonHandler : IRequestHandler<CreatePerson, CreatePersonResult>
@@ -38,20 +21,36 @@ namespace StargateAPI.Business.Commands
         }
         public async Task<CreatePersonResult> Handle(CreatePerson request, CancellationToken cancellationToken)
         {
+            var name = Person.NormalizeName(request.Name);
 
-                var newPerson = new Person()
-                {
-                   Name = request.Name
-                };
+            var existingPerson = await _context.People.FirstOrDefaultAsync(
+                p => p.Name.ToLower() == name,
+                cancellationToken);
 
-                await _context.People.AddAsync(newPerson);
-
-                await _context.SaveChangesAsync();
-
+            if (existingPerson is not null)
+            {
                 return new CreatePersonResult()
                 {
-                    Id = newPerson.Id
+                    Success = false,
+                    Message = "Person already exists.",
+                    ResponseCode = (int)HttpStatusCode.BadRequest
                 };
+            }
+
+            var newPerson = new Person()
+            {
+                Name = name
+            };
+
+            await _context.People.AddAsync(newPerson, cancellationToken);
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new CreatePersonResult()
+            {
+                Id = newPerson.Id,
+                Message = "Person created."
+            };
           
         }
     }

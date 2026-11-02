@@ -8,10 +8,10 @@ namespace StargateAPI.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class AstronautDutyController : ControllerBase
+    public class AstronautDutiesController : ControllerBase
     {
         private readonly IMediator _mediator;
-        public AstronautDutyController(IMediator mediator)
+        public AstronautDutiesController(IMediator mediator)
         {
             _mediator = mediator;
         }
@@ -21,7 +21,7 @@ namespace StargateAPI.Controllers
         {
             try
             {
-                var result = await _mediator.Send(new GetPersonByName()
+                var result = await _mediator.Send(new GetAstronautDutiesByName()
                 {
                     Name = name
                 });

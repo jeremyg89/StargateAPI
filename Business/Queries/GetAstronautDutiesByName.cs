@@ -29,8 +29,10 @@ namespace StargateAPI.Business.Queries
 
             //var person = await _context.Connection.QueryFirstOrDefaultAsync<PersonAstronaut>(query);
 
+            var name = Person.NormalizeName(request.Name);
+
             var person = await _context.People
-                .Where(p => p.Name == request.Name)
+                .Where(p => p.Name.ToLower() == name)
                 .Select(p => new PersonAstronaut
                 {
                     PersonId = p.Id,

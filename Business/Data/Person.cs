@@ -11,6 +11,9 @@ namespace StargateAPI.Business.Data
 
         public string Name { get; set; } = string.Empty;
 
+        public static string NormalizeName(string? name) =>
+            (name ?? string.Empty).Trim().ToLowerInvariant();
+
         public virtual AstronautDetail? AstronautDetail { get; set; }
 
         public virtual ICollection<AstronautDuty> AstronautDuties { get; set; } = new HashSet<AstronautDuty>();

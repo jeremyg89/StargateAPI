@@ -3,6 +3,7 @@ using MediatR.Pipeline;
 using Microsoft.EntityFrameworkCore;
 using StargateAPI.Business.Data;
 using StargateAPI.Controllers;
+using System.Net;
 
 namespace StargateAPI.Business.Commands
 {
@@ -17,30 +18,6 @@ namespace StargateAPI.Business.Commands
         public DateTime DutyStartDate { get; set; }
     }
 
-    public class CreateAstronautDutyPreProcessor : IRequestPreProcessor<CreateAstronautDuty>
-    {
-        private readonly StargateContext _context;
-
-        public CreateAstronautDutyPreProcessor(StargateContext context)
-        {
-            _context = context;
-        }
-
-        public Task Process(CreateAstronautDuty request, CancellationToken cancellationToken)
-        {
-            var person = _context.People.AsNoTracking().FirstOrDefault(z => z.Name == request.Name);
-
-            if (person is null) throw new BadHttpRequestException("Bad Request");
-
-            //Fixed so check only targets the user in question.
-            var verifyNoPreviousDuty = _context.AstronautDuties.FirstOrDefault(z => z.PersonId == person.Id && z.DutyTitle == request.DutyTitle && z.DutyStartDate == request.DutyStartDate);
-
-            if (verifyNoPreviousDuty is not null) throw new BadHttpRequestException("Bad Request");
-
-            return Task.CompletedTask;
-        }
-    }
-
     public class CreateAstronautDutyHandler : IRequestHandler<CreateAstronautDuty, CreateAstronautDutyResult>
     {
         private readonly StargateContext _context;
@@ -51,16 +28,36 @@ namespace StargateAPI.Business.Commands
         }
         public async Task<CreateAstronautDutyResult> Handle(CreateAstronautDuty request, CancellationToken cancellationToken)
         {
+            var name = Person.NormalizeName(request.Name);
 
-            //var query = $"SELECT * FROM [Person] WHERE \'{request.Name}\' = Name";
+            var person = await _context.People.FirstOrDefaultAsync(p => p.Name.ToLower() == name, cancellationToken);
 
-            //var person = await _context.Connection.QueryFirstOrDefaultAsync<Person>(query);
+            if (person is null)
+            {
+                return new CreateAstronautDutyResult()
+                {
+                    Success = false,
+                    Message = "Person not found.",
+                    ResponseCode = (int)HttpStatusCode.BadRequest
+                };
+            }
 
-            var person = await _context.People.FirstOrDefaultAsync(p => p.Name == request.Name, cancellationToken);
+            var duplicateDuty = await _context.AstronautDuties
+                .FirstOrDefaultAsync(d =>
+                d.PersonId == person.Id &&
+                d.DutyTitle == request.DutyTitle &&
+                d.DutyStartDate == request.DutyStartDate.Date,
+                cancellationToken);
 
-            //query = $"SELECT * FROM [AstronautDetail] WHERE {person.Id} = PersonId";
-
-            //var astronautDetail = await _context.Connection.QueryFirstOrDefaultAsync<AstronautDetail>(query);
+            if (duplicateDuty is not null)
+            {
+                return new CreateAstronautDutyResult()
+                {
+                    Success = false,
+                    Message = "Duplicate duty.",
+                    ResponseCode = (int)HttpStatusCode.BadRequest
+                };
+            }
 
             var astronautDetail = await _context.AstronautDetails.FirstOrDefaultAsync(d => d.PersonId == person.Id, cancellationToken);
 
